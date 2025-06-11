@@ -1,240 +1,249 @@
 #!/bin/bash
 
-# Colors for output
+# Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-clear
-
-echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║       GitHub Complete MCP Server - Automated Setup           ║"
-echo "║          All-in-One GitHub Management for Claude             ║"
-echo "╚══════════════════════════════════════════════════════════════╝"
-echo
-echo "This installer will set up the complete GitHub MCP server with:"
-echo "• Pull Requests, Issues, Branches, Releases"
-echo "• GitHub Actions, Analytics, Search, and more!"
+echo "==============================================="
+echo "  MCP Server Installation Script"
+echo "  GitHub & Git Complete Servers"
+echo "==============================================="
 echo
 
-# Operating system detection
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    OS="macOS"
-    CLAUDE_CONFIG_DIR="$HOME/Library/Application Support/Claude"
-else
-    OS="Linux"
-    CLAUDE_CONFIG_DIR="$HOME/.config/Claude"
-fi
-
-echo "Operating System: $OS"
-echo
-
-# Check Python
-echo "[1/7] Checking Python installation..."
-if command -v python3 &> /dev/null; then
-    PYTHON_VERSION=$(python3 --version | cut -d" " -f2)
-    echo -e "${GREEN}✅ Python $PYTHON_VERSION found${NC}"
-    PYTHON_CMD="python3"
-elif command -v python &> /dev/null; then
-    PYTHON_VERSION=$(python --version | cut -d" " -f2)
-    echo -e "${GREEN}✅ Python $PYTHON_VERSION found${NC}"
-    PYTHON_CMD="python"
-else
-    echo -e "${RED}❌ Python not found!${NC}"
-    echo
-    echo "To install Python:"
-    if [[ "$OS" == "macOS" ]]; then
-        echo "  brew install python3"
-        echo "  or download from https://python.org"
+# Function to print colored output
+print_status() {
+    if [ $2 -eq 0 ]; then
+        echo -e "${GREEN}[✓]${NC} $1"
     else
-        echo "  sudo apt-get update"
-        echo "  sudo apt-get install python3 python3-pip python3-venv"
+        echo -e "${RED}[✗]${NC} $1"
     fi
+}
+
+print_info() {
+    echo -e "${BLUE}[i]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[!]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Check if Python is installed
+if command -v python3 &> /dev/null; then
+    print_status "Python is installed" 0
+    python3 --version
+else
+    print_error "Python 3 is not installed."
+    echo "Please install Python 3.8 or higher:"
+    echo "  Ubuntu/Debian: sudo apt install python3 python3-pip python3-venv"
+    echo "  macOS: brew install python3"
+    echo "  Fedora: sudo dnf install python3 python3-pip"
     exit 1
 fi
 
-# Check pip
-if ! $PYTHON_CMD -m pip --version &> /dev/null; then
-    echo -e "${RED}❌ pip not found!${NC}"
-    echo "Please install pip:"
-    echo "  $PYTHON_CMD -m ensurepip --upgrade"
+# Check if pip is installed
+if ! command -v pip3 &> /dev/null; then
+    print_error "pip3 is not installed."
+    echo "Please install pip3 for Python package management."
     exit 1
 fi
 
-# Check venv module
-if ! $PYTHON_CMD -m venv --help &> /dev/null; then
-    echo -e "${RED}❌ venv module not found!${NC}"
-    echo "Please install python3-venv:"
-    if [[ "$OS" == "Linux" ]]; then
-        echo "  sudo apt-get install python3-venv"
-    fi
-    exit 1
+# Check if Node.js is installed (optional, for web-automation)
+if command -v node &> /dev/null; then
+    print_status "Node.js is installed" 0
+    node --version
+else
+    print_warning "Node.js is not installed."
+    echo "If you plan to use web-automation-mcp, install Node.js from https://nodejs.org"
 fi
 
-# Check Claude Desktop
+# Get installation directory
+INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+print_info "Installation directory: $INSTALL_DIR"
 echo
-echo "[2/7] Checking Claude Desktop..."
-if [ ! -d "$CLAUDE_CONFIG_DIR" ]; then
-    echo -e "${RED}❌ Claude Desktop not found!${NC}"
-    echo
-    echo "Please download Claude Desktop from: https://claude.ai/download"
-    echo "Run this script again after installation."
-    exit 1
-fi
-echo -e "${GREEN}✅ Claude Desktop found${NC}"
-
-# Create project folder
-echo
-echo "[3/7] Creating project folder..."
-INSTALL_DIR="$HOME/github-complete-mcp"
-mkdir -p "$INSTALL_DIR"
-cd "$INSTALL_DIR"
-echo -e "${GREEN}✅ Folder: $INSTALL_DIR${NC}"
 
 # Create virtual environment
-echo
-echo "[4/7] Creating Python virtual environment..."
-
-# Remove old venv if exists
-if [ -d "venv" ]; then
-    echo "Removing existing virtual environment..."
-    rm -rf venv
-fi
-
-$PYTHON_CMD -m venv venv
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ Failed to create virtual environment!${NC}"
+print_info "[1/6] Creating Python virtual environment..."
+python3 -m venv venv
+if [ $? -eq 0 ]; then
+    print_status "Virtual environment created" 0
+else
+    print_error "Failed to create virtual environment."
+    echo "Make sure python3-venv is installed."
     exit 1
 fi
-echo -e "${GREEN}✅ Virtual environment created${NC}"
 
 # Activate virtual environment
+print_info "[2/6] Activating virtual environment..."
 source venv/bin/activate
 
-# Install dependencies
-echo
-echo "[5/7] Installing required packages..."
+# Upgrade pip
+print_info "[3/6] Upgrading pip..."
+pip install --upgrade pip
 
-# Create requirements.txt
-cat > requirements.txt << EOF
-mcp==0.9.1
-httpx==0.27.0
-pydantic==2.5.0
-EOF
+# Install required packages
+print_info "[4/6] Installing required Python packages..."
+pip install httpx mcp pydantic
 
-pip install -r requirements.txt --quiet
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ Package installation failed!${NC}"
-    echo "Try installing packages manually:"
-    echo "  pip install mcp httpx pydantic"
-    exit 1
-fi
-echo -e "${GREEN}✅ Packages installed successfully${NC}"
-
-# Get GitHub Token
-echo
-echo "[6/7] GitHub Token Setup"
-echo "════════════════════════════════════════════════════════════════"
-echo
-echo -e "${CYAN}To create a GitHub Personal Access Token:${NC}"
-echo
-echo "1. Go to: https://github.com/settings/tokens"
-echo "2. Click \"Generate new token (classic)\""
-echo "3. Give it a name like \"Claude MCP Complete\""
-echo "4. Select these permissions:"
-echo "   ✓ repo (Full control of private repositories)"
-echo "   ✓ workflow (Update GitHub Action workflows)"
-echo "   ✓ write:packages (Upload packages to GitHub Package Registry)"
-echo "   ✓ admin:org (Full control of orgs and teams, read and write org projects)"
-echo "   ✓ delete_repo (Delete repositories)"
-echo "5. Click \"Generate token\" and copy it"
-echo
-echo "════════════════════════════════════════════════════════════════"
-echo
-read -p "Paste your GitHub Token (starts with ghp_): " GITHUB_TOKEN
-
+# Check if GitHub token is provided
 if [ -z "$GITHUB_TOKEN" ]; then
-    echo -e "${RED}❌ No token provided!${NC}"
-    exit 1
+    echo
+    echo "==============================================="
+    echo "  GITHUB TOKEN REQUIRED"
+    echo "==============================================="
+    echo
+    echo "Please enter your GitHub Personal Access Token:"
+    echo "(Create one at: https://github.com/settings/tokens)"
+    echo "Required scopes: repo, workflow, read:org"
+    echo
+    read -p "GitHub Token: " GITHUB_TOKEN
 fi
 
-# Configure Claude
-echo
-echo "[7/7] Configuring Claude Desktop..."
+# Validate GitHub token format
+if [[ ! "$GITHUB_TOKEN" =~ ^ghp_[a-zA-Z0-9]+$ ]]; then
+    print_warning "Token doesn't look like a valid GitHub token format."
+    echo "GitHub tokens should start with 'ghp_'"
+    echo
+fi
+
+# Detect OS and set config directory
+print_info "[5/6] Detecting operating system..."
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    CLAUDE_CONFIG_DIR="$HOME/Library/Application Support/Claude"
+    OS_TYPE="macOS"
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    # Linux
+    CLAUDE_CONFIG_DIR="$HOME/.config/Claude"
+    OS_TYPE="Linux"
+else
+    # Other Unix-like
+    CLAUDE_CONFIG_DIR="$HOME/.claude"
+    OS_TYPE="Unix"
+fi
+
+print_status "Detected $OS_TYPE" 0
 
 # Create config directory if it doesn't exist
-mkdir -p "$CLAUDE_CONFIG_DIR"
-
-# Backup existing config
-if [ -f "$CLAUDE_CONFIG_DIR/claude_desktop_config.json" ]; then
-    BACKUP_FILE="$CLAUDE_CONFIG_DIR/claude_desktop_config.backup.$(date +%Y%m%d_%H%M%S).json"
-    cp "$CLAUDE_CONFIG_DIR/claude_desktop_config.json" "$BACKUP_FILE"
-    echo "📁 Existing config backed up to: $BACKUP_FILE"
+if [ ! -d "$CLAUDE_CONFIG_DIR" ]; then
+    print_info "Creating Claude configuration directory..."
+    mkdir -p "$CLAUDE_CONFIG_DIR"
 fi
 
-# Create new config
-cat > "$CLAUDE_CONFIG_DIR/claude_desktop_config.json" << EOF
+# Generate Claude desktop config
+print_info "[6/6] Generating Claude desktop configuration..."
+CONFIG_FILE="$CLAUDE_CONFIG_DIR/claude_desktop_config.json"
+
+# Create the config file
+cat > "$CONFIG_FILE" << EOF
 {
   "mcpServers": {
     "github-complete": {
       "command": "$INSTALL_DIR/venv/bin/python",
       "args": ["$INSTALL_DIR/github_complete_server.py"],
       "env": {
-        "GITHUB_TOKEN": "$GITHUB_TOKEN"
+        "GITHUB_TOKEN": "$GITHUB_TOKEN",
+        "PYTHONIOENCODING": "utf-8"
       }
+    },
+    "git-server": {
+      "command": "$INSTALL_DIR/venv/bin/python",
+      "args": ["$INSTALL_DIR/git-mcp-server.py"],
+      "env": {
+        "GITHUB_TOKEN": "$GITHUB_TOKEN",
+        "PYTHONIOENCODING": "utf-8",
+        "HOME": "$HOME"
+      },
+      "workingDirectory": "$HOME/Documents"
     }
   }
 }
 EOF
 
-echo -e "${GREEN}✅ Claude configuration completed${NC}"
+# Create test scripts
+print_info "Creating test scripts..."
 
-# Check for main Python file
-if [ ! -f "$INSTALL_DIR/github_complete_server.py" ]; then
-    echo
-    echo -e "${YELLOW}⚠️  WARNING: github_complete_server.py file not found!${NC}"
-    echo "📁 Please copy the file to: $INSTALL_DIR/github_complete_server.py"
-    echo
-fi
+# Test GitHub server script
+cat > test_github_server.sh << 'EOF'
+#!/bin/bash
+echo "Testing GitHub Complete Server..."
+source venv/bin/activate
+export GITHUB_TOKEN
+python3 github_complete_server.py
+EOF
+chmod +x test_github_server.sh
 
-# Success message
-echo
-echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║                    🎉 SETUP COMPLETED! 🎉                     ║"
-echo "╚══════════════════════════════════════════════════════════════╝"
-echo
-echo -e "${GREEN}✅ Next steps:${NC}"
-echo
-echo "1. Copy github_complete_server.py file to:"
-echo "   $INSTALL_DIR/"
-echo
-echo "2. Completely close Claude Desktop"
-if [[ "$OS" == "macOS" ]]; then
-    echo "   Quit from the menu bar icon"
-else
-    echo "   Close all windows and check system tray"
-fi
-echo
-echo "3. Restart Claude Desktop"
-echo
-echo "4. Test with these commands:"
-echo "   • \"List my GitHub repositories\""
-echo "   • \"Show open issues in owner/repo\""
-echo "   • \"Create a new branch called feature-test\""
-echo "   • \"Search for machine learning repositories\""
-echo
-echo "📁 Installation location: $INSTALL_DIR"
-echo "📝 Config location: $CLAUDE_CONFIG_DIR/claude_desktop_config.json"
-echo
-echo -e "${CYAN}🚀 Available features:${NC}"
-echo "   • Pull Requests     • Issues          • Branches"
-echo "   • Repositories      • Releases        • GitHub Actions"
-echo "   • Commits          • Analytics       • Search"
-echo "   • Collaborators    • Files           • And more!"
-echo
+# Test Git server script
+cat > test_git_server.sh << 'EOF'
+#!/bin/bash
+echo "Testing Git MCP Server..."
+source venv/bin/activate
+export GITHUB_TOKEN
+python3 git-mcp-server.py
+EOF
+chmod +x test_git_server.sh
 
-# Make script executable
-chmod +x "$0"
+# Start servers script
+cat > start_servers.sh << EOF
+#!/bin/bash
+echo "Starting MCP Servers..."
+echo "Press Ctrl+C to stop the servers."
+source venv/bin/activate
+export GITHUB_TOKEN="$GITHUB_TOKEN"
+
+# Start servers in background
+python3 github_complete_server.py &
+PID1=\$!
+python3 git-mcp-server.py &
+PID2=\$!
+
+# Wait for interrupt
+trap "kill \$PID1 \$PID2; exit" INT
+wait
+EOF
+chmod +x start_servers.sh
+
+# Create uninstall script
+cat > uninstall.sh << EOF
+#!/bin/bash
+echo "Uninstalling MCP Servers..."
+rm -rf venv
+rm -f "$CONFIG_FILE"
+echo "Uninstallation complete."
+echo "Server files have been preserved."
+EOF
+chmod +x uninstall.sh
+
+echo
+echo "==============================================="
+echo "  INSTALLATION COMPLETE!"
+echo "==============================================="
+echo
+print_info "Configuration file created at:"
+echo "  $CONFIG_FILE"
+echo
+print_info "Next steps:"
+echo "1. Make sure github_complete_server.py and git-mcp-server.py are in:"
+echo "   $INSTALL_DIR"
+echo
+echo "2. Restart Claude Desktop application"
+echo
+echo "3. The MCP servers should now be available in Claude"
+echo
+print_info "Test scripts created:"
+echo "  - ./test_github_server.sh (Test GitHub server)"
+echo "  - ./test_git_server.sh (Test Git server)"
+echo "  - ./start_servers.sh (Start both servers)"
+echo "  - ./uninstall.sh (Uninstall MCP servers)"
+echo
+print_info "Your GitHub token has been saved securely in the configuration."
+echo "To update it later, edit: $CONFIG_FILE"
+echo
+echo "==============================================="
+echo

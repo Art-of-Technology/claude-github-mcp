@@ -1,190 +1,172 @@
 @echo off
 setlocal enabledelayedexpansion
-chcp 65001 > nul
-cls
 
-echo ╔══════════════════════════════════════════════════════════════╗
-echo ║       GitHub Complete MCP Server - Automated Setup           ║
-echo ║          All-in-One GitHub Management for Claude             ║
-echo ╚══════════════════════════════════════════════════════════════╝
-echo.
-echo This installer will set up the complete GitHub MCP server with:
-echo • Pull Requests, Issues, Branches, Releases
-echo • GitHub Actions, Analytics, Search, and more!
+echo ===============================================
+echo   MCP Server Installation Script for Windows
+echo   GitHub & Git Complete Servers
+echo ===============================================
 echo.
 
-:: Check Python
-echo [1/7] Checking Python installation...
-py --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo ❌ Python not found!
-    echo.
-    echo Please download Python from: https://www.python.org/downloads/
-    echo Make sure to check "Add Python to PATH" during installation!
-    echo.
+:: Check if Python is installed
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Python is not installed or not in PATH.
+    echo Please install Python 3.8 or higher from https://python.org
+    echo Make sure to check "Add Python to PATH" during installation.
     pause
     exit /b 1
 )
 
-for /f "tokens=2" %%i in ('py --version 2^>^&1') do set PYTHON_VERSION=%%i
-echo ✅ Python %PYTHON_VERSION% found
+echo [✓] Python is installed
+python --version
 
-:: Check Claude Desktop
-echo.
-echo [2/7] Checking Claude Desktop...
-if not exist "%APPDATA%\Claude" (
-    echo ❌ Claude Desktop not found!
+:: Check if Node.js is installed (for web-automation-mcp if needed)
+node --version >nul 2>&1
+if errorlevel 1 (
+    echo [WARNING] Node.js is not installed. 
+    echo If you plan to use web-automation-mcp, install Node.js from https://nodejs.org
     echo.
-    echo Please download Claude Desktop from: https://claude.ai/download
-    echo Run this script again after installation.
-    echo.
-    pause
-    exit /b 1
+) else (
+    echo [✓] Node.js is installed
+    node --version
 )
-echo ✅ Claude Desktop found
 
-:: Create project folder
+:: Get installation directory
+set "INSTALL_DIR=%~dp0"
 echo.
-echo [3/7] Creating project folder...
-set INSTALL_DIR=%USERPROFILE%\github-complete-mcp
-if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
-cd /d "%INSTALL_DIR%"
-echo ✅ Folder: %INSTALL_DIR%
+echo Installation directory: %INSTALL_DIR%
+echo.
 
 :: Create virtual environment
-echo.
-echo [4/7] Creating Python virtual environment...
-
-:: Check if venv already exists
-if exist "venv" (
-    echo Virtual environment already exists, removing old one...
-    rmdir /s /q venv 2>nul
-    timeout /t 2 /nobreak >nul
-)
-
-py -m venv venv
-if %errorlevel% neq 0 (
-    echo ❌ Failed to create virtual environment!
-    echo.
-    echo Possible solutions:
-    echo 1. Run this script as Administrator
-    echo 2. Close all Python/CMD windows and try again
-    echo 3. Manually delete the 'venv' folder and retry
+echo [1/6] Creating Python virtual environment...
+python -m venv venv
+if errorlevel 1 (
+    echo [ERROR] Failed to create virtual environment.
+    echo Make sure python-venv is installed.
     pause
     exit /b 1
 )
-echo ✅ Virtual environment created
 
-:: Install dependencies
-echo.
-echo [5/7] Installing required packages...
+:: Activate virtual environment
+echo [2/6] Activating virtual environment...
 call venv\Scripts\activate.bat
 
-:: Create requirements.txt
-echo mcp==0.9.1 > requirements.txt
-echo httpx==0.27.0 >> requirements.txt
-echo pydantic==2.5.0 >> requirements.txt
+:: Upgrade pip
+echo [3/6] Upgrading pip...
+python -m pip install --upgrade pip
 
-pip install -r requirements.txt --quiet
-if %errorlevel% neq 0 (
-    echo ❌ Package installation failed!
-    pause
-    exit /b 1
-)
-echo ✅ Packages installed successfully
+:: Install required packages
+echo [4/6] Installing required Python packages...
+pip install httpx mcp pydantic
 
-:: Get GitHub Token
-echo.
-echo [6/7] GitHub Token Setup
-echo ════════════════════════════════════════════════════════════════
-echo.
-echo To create a GitHub Personal Access Token:
-echo.
-echo 1. Go to: https://github.com/settings/tokens
-echo 2. Click "Generate new token (classic)"
-echo 3. Give it a name like "Claude MCP Complete"
-echo 4. Select these permissions:
-echo    ✓ repo (Full control of private repositories)
-echo    ✓ workflow (Update GitHub Action workflows)
-echo    ✓ write:packages (Upload packages to GitHub Package Registry)
-echo    ✓ admin:org (Full control of orgs and teams, read and write org projects)
-echo    ✓ delete_repo (Delete repositories)
-echo 5. Click "Generate token" and copy it
-echo.
-echo ════════════════════════════════════════════════════════════════
-echo.
-set /p GITHUB_TOKEN="Paste your GitHub Token (starts with ghp_): "
-
+:: Check if GitHub token is provided
 if "%GITHUB_TOKEN%"=="" (
-    echo ❌ No token provided!
-    pause
-    exit /b 1
-)
-
-:: Configure Claude
-echo.
-echo [7/7] Configuring Claude Desktop...
-
-:: Create config directory if it doesn't exist
-if not exist "%APPDATA%\Claude" mkdir "%APPDATA%\Claude"
-
-:: Backup existing config
-if exist "%APPDATA%\Claude\claude_desktop_config.json" (
-    copy "%APPDATA%\Claude\claude_desktop_config.json" "%APPDATA%\Claude\claude_desktop_config.backup_%date:~-4%%date:~3,2%%date:~0,2%_%time:~0,2%%time:~3,2%.json" >nul
-    echo 📁 Existing config backed up
-)
-
-:: Create new config
-echo { > "%APPDATA%\Claude\claude_desktop_config.json"
-echo   "mcpServers": { >> "%APPDATA%\Claude\claude_desktop_config.json"
-echo     "github-complete": { >> "%APPDATA%\Claude\claude_desktop_config.json"
-echo       "command": "%INSTALL_DIR:\=\\%\\venv\\Scripts\\python.exe", >> "%APPDATA%\Claude\claude_desktop_config.json"
-echo       "args": ["%INSTALL_DIR:\=\\%\\github_complete_server.py"], >> "%APPDATA%\Claude\claude_desktop_config.json"
-echo       "env": { >> "%APPDATA%\Claude\claude_desktop_config.json"
-echo         "GITHUB_TOKEN": "%GITHUB_TOKEN%" >> "%APPDATA%\Claude\claude_desktop_config.json"
-echo       } >> "%APPDATA%\Claude\claude_desktop_config.json"
-echo     } >> "%APPDATA%\Claude\claude_desktop_config.json"
-echo   } >> "%APPDATA%\Claude\claude_desktop_config.json"
-echo } >> "%APPDATA%\Claude\claude_desktop_config.json"
-
-echo ✅ Claude configuration completed
-
-:: Check for main Python file
-if not exist "%INSTALL_DIR%\github_complete_server.py" (
     echo.
-    echo ⚠️  WARNING: github_complete_server.py file not found!
-    echo 📁 Please copy the file to: %INSTALL_DIR%\github_complete_server.py
+    echo ===============================================
+    echo   GITHUB TOKEN REQUIRED
+    echo ===============================================
+    echo.
+    echo Please enter your GitHub Personal Access Token:
+    echo (Create one at: https://github.com/settings/tokens)
+    echo Required scopes: repo, workflow, read:org
+    echo.
+    set /p GITHUB_TOKEN=GitHub Token: 
+)
+
+:: Validate GitHub token format
+echo !GITHUB_TOKEN! | findstr /r "^ghp_[a-zA-Z0-9]*$" >nul
+if errorlevel 1 (
+    echo.
+    echo [WARNING] Token doesn't look like a valid GitHub token format.
+    echo GitHub tokens should start with 'ghp_'
     echo.
 )
 
-:: Success message
+:: Create config directory for Claude
+set "CLAUDE_CONFIG_DIR=%APPDATA%\Claude"
+if not exist "%CLAUDE_CONFIG_DIR%" (
+    echo [5/6] Creating Claude configuration directory...
+    mkdir "%CLAUDE_CONFIG_DIR%"
+)
+
+:: Generate Claude desktop config
+echo [6/6] Generating Claude desktop configuration...
+set "CONFIG_FILE=%CLAUDE_CONFIG_DIR%\claude_desktop_config.json"
+
+:: Create the config file
+echo { > "%CONFIG_FILE%"
+echo   "mcpServers": { >> "%CONFIG_FILE%"
+echo     "github-complete": { >> "%CONFIG_FILE%"
+echo       "command": "%INSTALL_DIR%venv\Scripts\python.exe", >> "%CONFIG_FILE%"
+echo       "args": ["%INSTALL_DIR%github_complete_server.py"], >> "%CONFIG_FILE%"
+echo       "env": { >> "%CONFIG_FILE%"
+echo         "GITHUB_TOKEN": "!GITHUB_TOKEN!", >> "%CONFIG_FILE%"
+echo         "PYTHONIOENCODING": "utf-8" >> "%CONFIG_FILE%"
+echo       } >> "%CONFIG_FILE%"
+echo     }, >> "%CONFIG_FILE%"
+echo     "git-server": { >> "%CONFIG_FILE%"
+echo       "command": "%INSTALL_DIR%venv\Scripts\python.exe", >> "%CONFIG_FILE%"
+echo       "args": ["%INSTALL_DIR%git-mcp-server.py"], >> "%CONFIG_FILE%"
+echo       "env": { >> "%CONFIG_FILE%"
+echo         "GITHUB_TOKEN": "!GITHUB_TOKEN!", >> "%CONFIG_FILE%"
+echo         "PYTHONIOENCODING": "utf-8", >> "%CONFIG_FILE%"
+echo         "HOME": "%USERPROFILE%" >> "%CONFIG_FILE%"
+echo       }, >> "%CONFIG_FILE%"
+echo       "workingDirectory": "%USERPROFILE%\Documents" >> "%CONFIG_FILE%"
+echo     } >> "%CONFIG_FILE%"
+echo   } >> "%CONFIG_FILE%"
+echo } >> "%CONFIG_FILE%"
+
+:: Create a batch file to test the servers
+echo Creating test scripts...
+echo @echo off > test_github_server.bat
+echo echo Testing GitHub Complete Server... >> test_github_server.bat
+echo call venv\Scripts\activate.bat >> test_github_server.bat
+echo set GITHUB_TOKEN=!GITHUB_TOKEN! >> test_github_server.bat
+echo python github_complete_server.py >> test_github_server.bat
+echo pause >> test_github_server.bat
+
+echo @echo off > test_git_server.bat
+echo echo Testing Git MCP Server... >> test_git_server.bat
+echo call venv\Scripts\activate.bat >> test_git_server.bat
+echo set GITHUB_TOKEN=!GITHUB_TOKEN! >> test_git_server.bat
+echo python git-mcp-server.py >> test_git_server.bat
+echo pause >> test_git_server.bat
+
+:: Create start script
+echo @echo off > start_servers.bat
+echo echo Starting MCP Servers... >> start_servers.bat
+echo echo Close this window to stop the servers. >> start_servers.bat
+echo call venv\Scripts\activate.bat >> start_servers.bat
+echo set GITHUB_TOKEN=!GITHUB_TOKEN! >> start_servers.bat
+echo start "GitHub Complete Server" python github_complete_server.py >> start_servers.bat
+echo start "Git MCP Server" python git-mcp-server.py >> start_servers.bat
+echo pause >> start_servers.bat
+
 echo.
-echo ╔══════════════════════════════════════════════════════════════╗
-echo ║                    🎉 SETUP COMPLETED! 🎉                     ║
-echo ╚══════════════════════════════════════════════════════════════╝
+echo ===============================================
+echo   INSTALLATION COMPLETE!
+echo ===============================================
 echo.
-echo ✅ Next steps:
+echo Configuration file created at:
+echo   %CONFIG_FILE%
 echo.
-echo 1. Copy github_complete_server.py file to:
-echo    %INSTALL_DIR%\
+echo Next steps:
+echo 1. Make sure github_complete_server.py and git-mcp-server.py are in:
+echo    %INSTALL_DIR%
 echo.
-echo 2. Completely close Claude Desktop (including system tray)
+echo 2. Restart Claude Desktop application
 echo.
-echo 3. Restart Claude Desktop
+echo 3. The MCP servers should now be available in Claude
 echo.
-echo 4. Test with these commands:
-echo    • "List my GitHub repositories"
-echo    • "Show open issues in owner/repo"
-echo    • "Create a new branch called feature-test"
-echo    • "Search for machine learning repositories"
+echo Test scripts created:
+echo   - test_github_server.bat (Test GitHub server)
+echo   - test_git_server.bat (Test Git server)
+echo   - start_servers.bat (Start both servers)
 echo.
-echo 📁 Installation location: %INSTALL_DIR%
-echo 📝 Config backup: Check %APPDATA%\Claude\ folder
+echo Your GitHub token has been saved securely in the configuration.
+echo To update it later, edit: %CONFIG_FILE%
 echo.
-echo 🚀 Available features:
-echo    • Pull Requests     • Issues          • Branches
-echo    • Repositories      • Releases        • GitHub Actions
-echo    • Commits          • Analytics       • Search
-echo    • Collaborators    • Files           • And more!
+echo ===============================================
 echo.
 pause
